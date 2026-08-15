@@ -128,6 +128,13 @@ export default function RegistryPage() {
       />
 
       <div className="max-w-6xl mx-auto px-4 pb-16">
+        {/* Registry Note */}
+        <p className="text-center text-xs text-muted-foreground mb-6 leading-relaxed">
+          This is a gift registry only — we don&apos;t process orders. Please
+          purchase your chosen gift directly from the retailer using the link on
+          each product card.
+        </p>
+
         {/* Category Tabs */}
         <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border py-3 -mx-4 px-4">
           <CategoryTabs
