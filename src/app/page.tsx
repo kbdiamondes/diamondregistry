@@ -123,7 +123,7 @@ export default function RegistryPage() {
     <div className="min-h-screen bg-background">
       <Header
         coupleNames="Keith & Angie"
-        weddingDate="Spring 2027"
+        weddingDate="Spring 2028"
         welcomeMessage="We're so grateful you're celebrating with us. Browse our registry and choose a gift that speaks to you."
       />
 
