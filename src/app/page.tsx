@@ -1,69 +1,132 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useMemo } from "react";
+import { Header } from "@/components/Header";
+import { CategoryTabs } from "@/components/CategoryTabs";
+import { ProductCard } from "@/components/ProductCard";
+import { ClaimModal } from "@/components/ClaimModal";
+import { Toast } from "@/components/Toast";
+import { Product } from "@/lib/types";
+import { mockProducts, mockCategories, redactName } from "@/lib/data";
+
+export default function RegistryPage() {
+  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [claimingProduct, setClaimingProduct] = useState<Product | null>(null);
+  const [claimError, setClaimError] = useState<string>("");
+  const [toast, setToast] = useState<string>("");
+
+  const categories = useMemo(
+    () => mockCategories.map((c) => c.name).sort(),
+    []
+  );
+
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === "All") return products;
+    return products.filter((p) => p.category === activeCategory);
+  }, [products, activeCategory]);
+
+  const handleClaim = (product: Product) => {
+    setClaimError("");
+    setClaimingProduct(product);
+  };
+
+  const handleConfirmClaim = (
+    product: Product,
+    firstName: string,
+    lastName: string
+  ) => {
+    // Race condition check: re-verify product is still available
+    const current = products.find((p) => p.id === product.id);
+    if (!current || current.is_claimed) {
+      setClaimError(
+        "Someone just claimed this ahead of you! Please choose another gift."
+      );
+      return;
+    }
+
+    const displayName = redactName(firstName, lastName);
+    const now = new Date().toISOString();
+
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === product.id
+          ? {
+              ...p,
+              is_claimed: true,
+              claimed_by_real: `${firstName} ${lastName}`,
+              claimed_by_display: displayName,
+              claimed_at: now,
+            }
+          : p
+      )
+    );
+
+    setClaimingProduct(null);
+    setToast(`You've claimed ${product.name} for the couple.`);
+    setTimeout(() => setToast(""), 4000);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-background">
+      <Header
+        coupleNames="Keith & [Partner]"
+        weddingDate="Spring 2027"
+        welcomeMessage="We're so grateful you're celebrating with us. Browse our registry and choose a gift that speaks to you."
+      />
+
+      <div className="max-w-6xl mx-auto px-4 pb-16">
+        {/* Category Tabs */}
+        <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-sm border-b border-border py-3 -mx-4 px-4">
+          <CategoryTabs
+            categories={categories}
+            active={activeCategory}
+            onSelect={setActiveCategory}
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+
+        {/* Product Grid */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredProducts.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onClaim={handleClaim}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
+
+        {filteredProducts.length === 0 && (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground">
+              No gifts in this category yet.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Claim Modal */}
+      {claimingProduct && (
+        <ClaimModal
+          product={claimingProduct}
+          onClose={() => {
+            setClaimingProduct(null);
+            setClaimError("");
+          }}
+          onConfirm={handleConfirmClaim}
+          error={claimError}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast} onClose={() => setToast("")} />}
+
+      {/* Footer */}
+      <footer className="border-t border-border py-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          Made with care for Keith & [Partner]
+        </p>
+      </footer>
     </div>
   );
 }
