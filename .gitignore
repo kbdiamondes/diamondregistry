@@ -29,3 +29,4 @@ next-env.d.ts
 .obsidian/
 AGENTS.md
 CLAUDE.md
+out/
