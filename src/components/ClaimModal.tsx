@@ -83,6 +83,11 @@ export function ClaimModal({
           name so we know who&apos;s getting this.
         </p>
 
+        <p className="text-xs text-muted-foreground/70 mb-4 italic">
+          Your name will be redacted on the public registry — the couple will
+          only see your initials (e.g., J*** D**).
+        </p>
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
             {error}
