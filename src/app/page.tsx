@@ -70,7 +70,7 @@ export default function RegistryPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header
-        coupleNames="Keith & [Partner]"
+        coupleNames="Keith & Angie"
         weddingDate="Spring 2027"
         welcomeMessage="We're so grateful you're celebrating with us. Browse our registry and choose a gift that speaks to you."
       />
@@ -124,7 +124,7 @@ export default function RegistryPage() {
       {/* Footer */}
       <footer className="border-t border-border py-8 text-center">
         <p className="text-sm text-muted-foreground">
-          Made with care for Keith & [Partner]
+          Made with care for Keith & Angie
         </p>
       </footer>
     </div>
