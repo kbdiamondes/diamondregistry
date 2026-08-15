@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { ProductCard } from "@/components/ProductCard";
@@ -182,9 +183,23 @@ export default function RegistryPage() {
 
       {/* Footer */}
       <footer className="border-t border-border py-8 text-center">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mb-3">
           Made with care for Keith & Angie
         </p>
+        <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+          <Link
+            href="/privacy"
+            className="hover:text-foreground transition-colors"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/terms"
+            className="hover:text-foreground transition-colors"
+          >
+            Terms
+          </Link>
+        </div>
       </footer>
     </div>
   );
