@@ -406,7 +406,7 @@ export default function AdminPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                      {product.claimed_by_real || "—"}
+                      {product.claimed_by_display || "—"}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs font-mono hidden lg:table-cell">
                       {product.claimed_at
