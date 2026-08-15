@@ -1,24 +1,42 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { ProductCard } from "@/components/ProductCard";
 import { ClaimModal } from "@/components/ClaimModal";
 import { Toast } from "@/components/Toast";
 import { Product } from "@/lib/types";
-import { mockProducts, mockCategories, redactName } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
+import { redactName } from "@/lib/data";
 
 export default function RegistryPage() {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
   const [claimingProduct, setClaimingProduct] = useState<Product | null>(null);
   const [claimError, setClaimError] = useState<string>("");
   const [toast, setToast] = useState<string>("");
 
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (!error && data) {
+      setProducts(data as Product[]);
+    }
+    setLoading(false);
+  };
+
   const categories = useMemo(
-    () => mockCategories.map((c) => c.name).sort(),
-    []
+    () => [...new Set(products.map((p) => p.category))].sort(),
+    [products]
   );
 
   const filteredProducts = useMemo(() => {
@@ -31,14 +49,20 @@ export default function RegistryPage() {
     setClaimingProduct(product);
   };
 
-  const handleConfirmClaim = (
+  const handleConfirmClaim = async (
     product: Product,
     firstName: string,
     lastName: string
   ) => {
-    // Race condition check: re-verify product is still available
-    const current = products.find((p) => p.id === product.id);
-    if (!current || current.is_claimed) {
+    // Race condition protection: use RPC or check-then-update
+    // First, verify the product is still unclaimed
+    const { data: current, error: fetchErr } = await supabase
+      .from("products")
+      .select("is_claimed")
+      .eq("id", product.id)
+      .single();
+
+    if (fetchErr || !current || current.is_claimed) {
       setClaimError(
         "Someone just claimed this ahead of you! Please choose another gift."
       );
@@ -48,6 +72,26 @@ export default function RegistryPage() {
     const displayName = redactName(firstName, lastName);
     const now = new Date().toISOString();
 
+    // Update the product
+    const { error: updateErr } = await supabase
+      .from("products")
+      .update({
+        is_claimed: true,
+        claimed_by_real: `${firstName} ${lastName}`,
+        claimed_by_display: displayName,
+        claimed_at: now,
+      })
+      .eq("id", product.id)
+      .eq("is_claimed", false); // Double-check race condition
+
+    if (updateErr) {
+      setClaimError(
+        "Someone just claimed this ahead of you! Please choose another gift."
+      );
+      return;
+    }
+
+    // Update local state
     setProducts((prev) =>
       prev.map((p) =>
         p.id === product.id
@@ -66,6 +110,14 @@ export default function RegistryPage() {
     setToast(`You've claimed ${product.name} for the couple.`);
     setTimeout(() => setToast(""), 4000);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading gifts...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Product } from "@/lib/types";
-import { mockProducts, mockCategories, redactName } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "wedding2027";
 
@@ -10,7 +10,8 @@ export default function AdminPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "claimed" | "unclaimed">("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -23,6 +24,24 @@ export default function AdminPage() {
   const [formDescription, setFormDescription] = useState("");
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formExternalLink, setFormExternalLink] = useState("");
+
+  useEffect(() => {
+    if (authenticated) {
+      fetchProducts();
+    }
+  }, [authenticated]);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (!error && data) {
+      setProducts(data as Product[]);
+    }
+    setLoading(false);
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,12 +74,12 @@ export default function AdminPage() {
     setEditingProduct(null);
   };
 
-  const handleAddProduct = (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const category =
       formNewCategory.trim() || formCategory || "Uncategorized";
-    const newProduct: Product = {
-      id: String(Date.now()),
+
+    const newProduct = {
       name: formName.trim(),
       description: formDescription.trim(),
       price: formPrice.trim(),
@@ -72,54 +91,88 @@ export default function AdminPage() {
       claimed_by_real: null,
       claimed_by_display: null,
       claimed_at: null,
-      created_at: new Date().toISOString(),
     };
-    setProducts((prev) => [...prev, newProduct]);
-    resetForm();
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert(newProduct)
+      .select()
+      .single();
+
+    if (!error && data) {
+      setProducts((prev) => [...prev, data as Product]);
+      resetForm();
+      setShowAddForm(false);
+    }
   };
 
-  const handleEditProduct = (e: React.FormEvent) => {
+  const handleEditProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
     const category =
       formNewCategory.trim() || formCategory || editingProduct.category;
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === editingProduct.id
-          ? {
-              ...p,
-              name: formName.trim(),
-              description: formDescription.trim(),
-              price: formPrice.trim(),
-              image_url: formImageUrl.trim() || p.image_url,
-              external_link: formExternalLink.trim(),
-              category,
-            }
-          : p
-      )
-    );
-    resetForm();
+
+    const updates = {
+      name: formName.trim(),
+      description: formDescription.trim(),
+      price: formPrice.trim(),
+      image_url: formImageUrl.trim() || editingProduct.image_url,
+      external_link: formExternalLink.trim(),
+      category,
+    };
+
+    const { error } = await supabase
+      .from("products")
+      .update(updates)
+      .eq("id", editingProduct.id);
+
+    if (!error) {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id ? { ...p, ...updates } : p
+        )
+      );
+      resetForm();
+      setShowAddForm(false);
+    }
   };
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+
+    const { error } = await supabase.from("products").delete().eq("id", id);
+
+    if (!error) {
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    }
   };
 
-  const handleUnclaim = (id: string) => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              is_claimed: false,
-              claimed_by_real: null,
-              claimed_by_display: null,
-              claimed_at: null,
-            }
-          : p
-      )
-    );
+  const handleUnclaim = async (id: string) => {
+    const { error } = await supabase
+      .from("products")
+      .update({
+        is_claimed: false,
+        claimed_by_real: null,
+        claimed_by_display: null,
+        claimed_at: null,
+      })
+      .eq("id", id);
+
+    if (!error) {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                is_claimed: false,
+                claimed_by_real: null,
+                claimed_by_display: null,
+                claimed_at: null,
+              }
+            : p
+        )
+      );
+    }
   };
 
   const startEdit = (product: Product) => {
@@ -339,7 +392,8 @@ export default function AdminPage() {
                   className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
                 >
                   Cancel
-                </button>                <button
+                </button>
+                <button
                   type="submit"
                   className="px-4 py-2 text-sm font-medium text-accent-foreground bg-accent rounded-lg hover:opacity-90 active:scale-[0.98] transition-all"
                 >
@@ -352,100 +406,106 @@ export default function AdminPage() {
 
         {/* Products Table */}
         <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
-                    Gift
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">
-                    Category
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">
-                    Claimed By
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">
-                    Date
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-foreground">
-                        {product.name}
-                      </div>
-                      {product.price && (
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {product.price}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                      {product.category}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
-                          product.is_claimed
-                            ? "bg-accent/10 text-accent"
-                            : "bg-green-50 text-green-700"
-                        }`}
-                      >
-                        {product.is_claimed ? "Claimed" : "Available"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                      <span title={product.claimed_by_real || undefined}>
-                        {product.claimed_by_display || "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs font-mono hidden lg:table-cell">
-                      {product.claimed_at
-                        ? new Date(product.claimed_at).toLocaleDateString()
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => startEdit(product)}
-                          className="px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                        >
-                          Edit
-                        </button>
-                        {product.is_claimed && (
-                          <button
-                            onClick={() => handleUnclaim(product.id)}
-                            className="px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                          >
-                            Unclaim
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">
+              Loading gifts...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Gift
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden sm:table-cell">
+                      Category
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell">
+                      Claimed By
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground hidden lg:table-cell">
+                      Date
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredProducts.length === 0 && (
+                </thead>
+                <tbody>
+                  {filteredProducts.map((product) => (
+                    <tr
+                      key={product.id}
+                      className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">
+                          {product.name}
+                        </div>
+                        {product.price && (
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {product.price}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                        {product.category}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                            product.is_claimed
+                              ? "bg-accent/10 text-accent"
+                              : "bg-green-50 text-green-700"
+                          }`}
+                        >
+                          {product.is_claimed ? "Claimed" : "Available"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                        <span title={product.claimed_by_real || undefined}>
+                          {product.claimed_by_display || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs font-mono hidden lg:table-cell">
+                        {product.claimed_at
+                          ? new Date(product.claimed_at).toLocaleDateString()
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => startEdit(product)}
+                            className="px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                          >
+                            Edit
+                          </button>
+                          {product.is_claimed && (
+                            <button
+                              onClick={() => handleUnclaim(product.id)}
+                              className="px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                            >
+                              Unclaim
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!loading && filteredProducts.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               No gifts match this filter.
             </div>
