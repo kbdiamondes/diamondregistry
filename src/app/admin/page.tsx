@@ -53,7 +53,6 @@ export default function AdminPage() {
     setFormImageUrl("");
     setFormExternalLink("");
     setEditingProduct(null);
-    setShowAddForm(false);
   };
 
   const handleAddProduct = (e: React.FormEvent) => {
@@ -201,8 +200,8 @@ export default function AdminPage() {
             </a>
             <button
               onClick={() => {
-                setShowAddForm(true);
                 resetForm();
+                setShowAddForm(true);
               }}
               className="px-4 py-2 text-sm font-medium text-accent-foreground bg-accent rounded-lg hover:opacity-90 active:scale-[0.98] transition-all"
             >
@@ -333,12 +332,14 @@ export default function AdminPage() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={() => {
+                    resetForm();
+                    setShowAddForm(false);
+                  }}
                   className="px-4 py-2 text-sm font-medium text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </button>                <button
                   type="submit"
                   className="px-4 py-2 text-sm font-medium text-accent-foreground bg-accent rounded-lg hover:opacity-90 active:scale-[0.98] transition-all"
                 >
@@ -406,7 +407,9 @@ export default function AdminPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                      {product.claimed_by_display || "—"}
+                      <span title={product.claimed_by_real || undefined}>
+                        {product.claimed_by_display || "—"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs font-mono hidden lg:table-cell">
                       {product.claimed_at
